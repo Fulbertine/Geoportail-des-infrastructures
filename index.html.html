@@ -1,0 +1,1616 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Géoportail des Infrastructures Sanitaires du Bénin</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            background: #1a5d1a;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 400px;
+            height: 100%;
+            background: linear-gradient(180deg, #1a5d1a 0%, #0d3d0d 100%);
+            color: white;
+            z-index: 1000;
+            overflow-y: auto;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.4);
+            transition: transform 0.3s ease;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(100%);
+        }
+
+        .sidebar-header {
+            background: linear-gradient(135deg, #0d3d0d 0%, #1a5d1a 100%);
+            padding: 15px;
+            text-align: center;
+            border-bottom: 3px solid #4caf50;
+        }
+
+        .sidebar-header h1 {
+            font-size: 15px;
+            margin-bottom: 5px;
+            color: #a8e6a3;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+        }
+
+        .sidebar-header p {
+            font-size: 11px;
+            opacity: 0.9;
+            color: #c8e6c9;
+        }
+
+        .sidebar-content {
+            padding: 10px;
+        }
+
+        .section {
+            background: rgba(255,255,255,0.08);
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .section h3 {
+            font-size: 12px;
+            margin-bottom: 10px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #a8e6a3;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .section h3 i {
+            color: #4caf50;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 5px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 8px 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.95);
+            color: #1a5d1a;
+            font-size: 12px;
+        }
+
+        .search-box input::placeholder {
+            color: #666;
+        }
+
+        .search-box button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 5px;
+            background: #4caf50;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .search-box button:hover {
+            background: #388e3c;
+        }
+
+        .position-section {
+            display: flex;
+            gap: 8px;
+        }
+
+        .position-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            color: white;
+        }
+
+        .position-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .position-btn:disabled {
+            opacity: 0.7;
+            cursor: wait;
+        }
+
+        .position-btn.loading {
+            background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
+        }
+
+        .position-btn.success {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+        }
+
+        .basemap-options {
+            display: flex;
+            gap: 8px;
+        }
+
+        .basemap-btn {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .basemap-btn.active {
+            border-color: #4caf50;
+            background: rgba(76, 175, 80, 0.3);
+        }
+
+        .basemap-btn:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        .basemap-btn i {
+            font-size: 20px;
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .basemap-btn span {
+            font-size: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 12px;
+            padding: 8px 10px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .legend-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .legend-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+            accent-color: #4caf50;
+        }
+
+        .legend-item.hidden-type {
+            opacity: 0.4;
+        }
+
+        .legend-icon {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+        }
+
+        .legend-label {
+            flex: 1;
+            color: white;
+        }
+
+        .legend-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #c8e6c9;
+            min-width: 30px;
+            text-align: center;
+        }
+
+        .filter-group {
+            margin-bottom: 10px;
+        }
+
+        .filter-group label {
+            display: block;
+            font-size: 11px;
+            margin-bottom: 4px;
+            opacity: 0.9;
+            color: #c8e6c9;
+        }
+
+        .filter-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: none;
+            border-radius: 5px;
+            background: rgba(255,255,255,0.95);
+            color: #1a5d1a;
+            font-size: 12px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .stat-card {
+            background: rgba(76, 175, 80, 0.2);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(76, 175, 80, 0.3);
+        }
+
+        .stat-card .number {
+            font-size: 22px;
+            font-weight: bold;
+            color: #a8e6a3;
+        }
+
+        .stat-card .label {
+            font-size: 10px;
+            color: #c8e6c9;
+            margin-top: 2px;
+        }
+
+        .action-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+        }
+
+        .btn {
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #2196f3 0%, #1976d2 100%);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%);
+            transform: translateY(-1px);
+        }
+
+        .about-btn {
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            color: white;
+            margin-top: 5px;
+            width: 100%;
+        }
+
+        .about-btn:hover {
+            background: linear-gradient(135deg, #388e3c 0%, #2e7d32 100%);
+        }
+
+        .toggle-btn {
+            position: fixed;
+            top: 10px;
+            right: 410px;
+            z-index: 1001;
+            background: #1a5d1a;
+            color: white;
+            border: 2px solid #4caf50;
+            padding: 8px 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+
+        .toggle-btn:hover {
+            background: #4caf50;
+        }
+
+        .toggle-btn.collapsed {
+            right: 10px;
+        }
+
+        .north-arrow {
+            position: absolute;
+            bottom: 120px;
+            left: 10px;
+            z-index: 999;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            text-align: center;
+        }
+
+        .north-arrow i {
+            font-size: 20px;
+            color: #1a5d1a;
+        }
+
+        .north-arrow span {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            color: #1a5d1a;
+        }
+
+        .scale-bar {
+            position: absolute;
+            bottom: 80px;
+            left: 10px;
+            z-index: 999;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            font-size: 11px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .scale-bar-line {
+            height: 4px;
+            background: #1a5d1a;
+            margin-top: 4px;
+            border-radius: 2px;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 10px;
+            border-top: 1px solid rgba(255,255,255,0.2);
+            margin-top: 10px;
+        }
+
+        .footer p {
+            font-size: 11px;
+            color: #a8e6a3;
+        }
+
+        .footer .total {
+            font-size: 13px;
+            font-weight: bold;
+            color: #a8e6a3;
+            margin-bottom: 5px;
+        }
+
+        .popup-content {
+            min-width: 200px;
+        }
+
+        .popup-content h4 {
+            color: #1a5d1a;
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 2px solid #4caf50;
+            font-size: 13px;
+        }
+
+        .popup-content p {
+            margin: 4px 0;
+            font-size: 11px;
+        }
+
+        .popup-content strong {
+            color: #2e7d32;
+        }
+
+        .popup-content .nature-public {
+            color: #2196f3;
+            font-weight: 600;
+        }
+
+        .popup-content .nature-prive {
+            color: #e91e63;
+            font-weight: 600;
+        }
+
+        .custom-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .marker-icon {
+            font-size: 12px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+            filter: drop-shadow(0 2px 3px rgba(0,0,0,0.3));
+        }
+
+        .user-marker {
+            background: #2196F3;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 0 10px rgba(33, 150, 243, 0.7);
+        }
+
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            max-width: 450px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .modal-content h3 {
+            color: #1a5d1a;
+            margin-bottom: 15px;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-content h4 {
+            color: #2e7d32;
+            margin: 15px 0 10px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .modal-content p {
+            font-size: 12px;
+            color: #333;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .contact-info {
+            background: #e8f5e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .contact-info p {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px 0;
+        }
+
+        .contact-info i {
+            color: #4caf50;
+            width: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                max-height: 55vh;
+                top: auto;
+                bottom: 0;
+                border-radius: 15px 15px 0 0;
+            }
+
+            .sidebar.collapsed {
+                transform: translateY(100%);
+            }
+
+            .toggle-btn {
+                right: 10px;
+                top: auto;
+                bottom: 60vh;
+            }
+
+            .toggle-btn.collapsed {
+                bottom: 10px;
+            }
+
+            .north-arrow {
+                bottom: 62vh;
+            }
+
+            .sidebar-header h1 {
+                font-size: 13px;
+            }
+
+            .section {
+                padding: 10px;
+            }
+
+            .stat-card .number {
+                font-size: 18px;
+            }
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+
+        .leaflet-popup-content {
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+
+    <button class="toggle-btn" onclick="toggleSidebar()">
+        <i class="fas fa-bars"></i> Menu
+    </button>
+
+    <div class="north-arrow">
+        <i class="fas fa-arrow-up"></i>
+        <span>N</span>
+    </div>
+
+    <div class="scale-bar" id="scaleBar">
+        <span id="scaleText">100 km</span>
+        <div class="scale-bar-line" id="scaleLine" style="width: 100px;"></div>
+    </div>
+
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <h1>🏥 Géoportail des Infrastructures Sanitaires du Bénin</h1>
+            <p>Cartographie interactive des établissements de santé</p>
+        </div>
+
+        <div class="sidebar-content">
+            <!-- RECHERCHE -->
+            <div class="section">
+                <h3><i class="fas fa-search"></i> Recherche</h3>
+                <div class="search-box">
+                    <input type="text" id="search-input" placeholder="Rechercher un établissement...">
+                    <button onclick="searchEstablishment()">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- POSITION -->
+            <div class="section">
+                <h3><i class="fas fa-map-marker-alt"></i> Position</h3>
+                <div class="position-section">
+                    <button class="position-btn" id="btn-location" onclick="getUserLocation()">
+                        <i class="fas fa-crosshairs"></i> <span id="btn-text">Ma position</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- FOND DE CARTE -->
+            <div class="section">
+                <h3><i class="fas fa-layer-group"></i> Fond de carte</h3>
+                <div class="basemap-options">
+                    <button class="basemap-btn active" id="btn-osm" onclick="switchBasemap('osm')">
+                        <i class="fas fa-map"></i>
+                        <span>OSM</span>
+                    </button>
+                    <button class="basemap-btn" id="btn-satellite" onclick="switchBasemap('satellite')">
+                        <i class="fas fa-satellite"></i>
+                        <span>Satellite</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- LÉGENDE / COUCHES -->
+            <div class="section">
+                <h3><i class="fas fa-list"></i> Légende / Couches</h3>
+                <div class="legend-item" data-type="CHN">
+                    <input type="checkbox" checked onchange="toggleType('CHN', this.checked)">
+                    <span class="legend-icon" style="color: #e74c3c;"><i class="fas fa-hospital"></i></span>
+                    <span class="legend-label">Centre Hospitalier National</span>
+                    <span class="legend-count" id="count-CHN">2</span>
+                </div>
+                <div class="legend-item" data-type="CHD">
+                    <input type="checkbox" checked onchange="toggleType('CHD', this.checked)">
+                    <span class="legend-icon" style="color: #c0392b;"><i class="fas fa-hospital-alt"></i></span>
+                    <span class="legend-label">Centre Hospitalier Départemental</span>
+                    <span class="legend-count" id="count-CHD">8</span>
+                </div>
+                <div class="legend-item" data-type="HZ">
+                    <input type="checkbox" checked onchange="toggleType('HZ', this.checked)">
+                    <span class="legend-icon" style="color: #e67e22;"><i class="fas fa-hospital-user"></i></span>
+                    <span class="legend-label">Hôpital de Zone</span>
+                    <span class="legend-count" id="count-HZ">38</span>
+                </div>
+                <div class="legend-item" data-type="CS">
+                    <input type="checkbox" checked onchange="toggleType('CS', this.checked)">
+                    <span class="legend-icon" style="color: #27ae60;"><i class="fas fa-clinic-medical"></i></span>
+                    <span class="legend-label">Centre de Santé</span>
+                    <span class="legend-count" id="count-CS">118</span>
+                </div>
+                <div class="legend-item" data-type="Maternité">
+                    <input type="checkbox" checked onchange="toggleType('Maternité', this.checked)">
+                    <span class="legend-icon" style="color: #e91e63;"><i class="fas fa-baby"></i></span>
+                    <span class="legend-label">Maternité</span>
+                    <span class="legend-count" id="count-Maternité">15</span>
+                </div>
+                <div class="legend-item" data-type="Clinique">
+                    <input type="checkbox" checked onchange="toggleType('Clinique', this.checked)">
+                    <span class="legend-icon" style="color: #9b59b6;"><i class="fas fa-user-doctor"></i></span>
+                    <span class="legend-label">Clinique</span>
+                    <span class="legend-count" id="count-Clinique">37</span>
+                </div>
+                <div class="legend-item" data-type="Dispensaire">
+                    <input type="checkbox" checked onchange="toggleType('Dispensaire', this.checked)">
+                    <span class="legend-icon" style="color: #3498db;"><i class="fas fa-medkit"></i></span>
+                    <span class="legend-label">Dispensaire</span>
+                    <span class="legend-count" id="count-Dispensaire">15</span>
+                </div>
+            </div>
+
+            <!-- FILTRES -->
+            <div class="section">
+                <h3><i class="fas fa-filter"></i> Filtres</h3>
+                <div class="filter-group">
+                    <label><i class="fas fa-map"></i> Département</label>
+                    <select id="departement-filter" onchange="filterCommunes()">
+                        <option value="">Tous les départements</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-city"></i> Commune</label>
+                    <select id="commune-filter" onchange="applyFilters()">
+                        <option value="">Toutes les communes</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-hospital"></i> Type d'établissement</label>
+                    <select id="type-filter" onchange="applyFilters()">
+                        <option value="">Tous les types</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label><i class="fas fa-building"></i> Nature</label>
+                    <select id="nature-filter" onchange="applyFilters()">
+                        <option value="">Toutes les natures</option>
+                        <option value="Public">Public</option>
+                        <option value="Privé">Privé</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- STATISTIQUES -->
+            <div class="section">
+                <h3><i class="fas fa-chart-bar"></i> Statistiques</h3>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="number" id="total-count">233</div>
+                        <div class="label">Total établissements</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number" id="filtered-count">233</div>
+                        <div class="label">Affichés</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">12</div>
+                        <div class="label">Départements</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="number">77</div>
+                        <div class="label">Communes</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="section">
+                <h3><i class="fas fa-tasks"></i> Actions</h3>
+                <div class="action-buttons">
+                    <button class="btn btn-primary" onclick="showStats()">
+                        <i class="fas fa-chart-pie"></i> Statistiques
+                    </button>
+                    <button class="btn btn-secondary" onclick="exportGeoJSON()">
+                        <i class="fas fa-download"></i> Exporter
+                    </button>
+                    <button class="btn btn-secondary" onclick="printMap()">
+                        <i class="fas fa-print"></i> Imprimer
+                    </button>
+                    <button class="btn btn-primary" onclick="exportCSV()">
+                        <i class="fas fa-file-csv"></i> CSV
+                    </button>
+                </div>
+            </div>
+
+            <!-- À PROPOS -->
+            <div class="section">
+                <h3><i class="fas fa-info-circle"></i> À propos</h3>
+                <button class="btn about-btn" onclick="showAbout()">
+                    <i class="fas fa-user"></i> À propos du concepteur
+                </button>
+            </div>
+
+            <div class="footer">
+                <p class="total">233 établissements sanitaires</p>
+                <p>© 2026 - Géoportail des Infrastructures Sanitaires du Bénin</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal À propos -->
+    <div class="modal-overlay" id="aboutModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeAbout()">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3><i class="fas fa-user"></i> À propos du concepteur</h3>
+            
+            <div class="contact-info">
+                <p><i class="fas fa-user"></i> <strong>Claudette Fulbertine HOUNKPE</strong></p>
+                <p><i class="fas fa-graduation-cap"></i> Étudiante en fin de formation de Licence Professionnelle option SIG et Télédétection</p>
+                <p><i class="fas fa-envelope"></i> hounkpeclaudette@gmail.com</p>
+                <p><i class="fas fa-phone"></i> +229 0150282963</p>
+                <p><i class="fab fa-linkedin"></i> LinkedIn: Claudette Fulbertine HOUNKPE</p>
+            </div>
+
+            <h4><i class="fas fa-user-circle"></i> À propos de moi</h4>
+            <p>Étudiante en géomatique, je me spécialise dans l'exploitation des Systèmes d'Information Géographique (SIG) pour l'analyse et la valorisation des données spatiales.</p>
+            <p>Je développe des compétences en traitement de données géospatiales, en cartographie numérique et en conception de géoportails interactifs.</p>
+            <p>À travers mes projets, j'ambitionne de produire des outils d'aide à la décision basés sur l'analyse spatiale, notamment dans les domaines de l'aménagement du territoire et de la gestion des infrastructures.</p>
+
+            <h4><i class="fas fa-folder-open"></i> Le Projet</h4>
+            <p>Ce projet consiste en la mise en place d'un géoportail interactif dédié à la cartographie des infrastructures sanitaires du Bénin. Il repose sur l'intégration et le traitement de données géospatiales, permettant la visualisation des établissements de santé avec leurs attributs descriptifs (nom, type, nature, commune et département).</p>
+
+            <h4><i class="fas fa-bullseye"></i> Objectif du géoportail</h4>
+            <p>L'objectif de ce géoportail est de faciliter l'analyse spatiale de la répartition des infrastructures sanitaires, d'identifier les disparités territoriales en matière d'accès aux services de santé, et de fournir un outil d'aide à la décision pour la planification et la gestion du système sanitaire.</p>
+        </div>
+    </div>
+
+    <!-- Modal Statistiques -->
+    <div class="modal-overlay" id="statsModal">
+        <div class="modal-content">
+            <button class="modal-close" onclick="closeStats()">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3><i class="fas fa-chart-pie"></i> Statistiques détaillées</h3>
+            <div id="stats-content"></div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // ==================== DONNÉES DES 233 ÉTABLISSEMENTS AVEC NATURE ====================
+        const healthFacilities = [
+            // CENTRE HOSPITALIER NATIONAL (2) - Public
+            { id: 1, nom: "CHU de Cotonou", type: "CHN", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3723, longitude: 2.4045 },
+            { id: 2, nom: "CHU National Hubert Maga", type: "CHN", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3823, longitude: 2.3945 },
+            
+            // CENTRE HOSPITALIER DÉPARTEMENTAL (8) - Public
+            { id: 3, nom: "CHR d'Abomey", type: "CHD", nature: "Public", departement: "Zou", commune: "Abomey", latitude: 7.1823, longitude: 2.1145 },
+            { id: 4, nom: "CHR de Parakou", type: "CHD", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3523, longitude: 2.6145 },
+            { id: 5, nom: "CHR de Porto-Novo", type: "CHD", nature: "Public", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.4823, longitude: 2.6245 },
+            { id: 6, nom: "CHR de Lokossa", type: "CHD", nature: "Public", departement: "Mono", commune: "Lokossa", latitude: 6.6623, longitude: 1.7145 },
+            { id: 7, nom: "CHR de Djougou", type: "CHD", nature: "Public", departement: "Donga", commune: "Djougou", latitude: 9.7123, longitude: 1.6645 },
+            { id: 8, nom: "CHR de Malanville", type: "CHD", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.8723, longitude: 3.3845 },
+            { id: 9, nom: "CHR de Savalou", type: "CHD", nature: "Public", departement: "Collines", commune: "Savalou", latitude: 7.9223, longitude: 1.9845 },
+            { id: 10, nom: "CHR de Pobè", type: "CHD", nature: "Public", departement: "Plateau", commune: "Pobè", latitude: 6.9823, longitude: 2.6845 },
+            
+            // HÔPITAL DE ZONE (38) - Public
+            { id: 11, nom: "Hôpital de Zone d'Abomey-Calavi", type: "HZ", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4521, longitude: 2.3412 },
+            { id: 12, nom: "Hôpital de Zone d'Allada", type: "HZ", nature: "Public", departement: "Atlantique", commune: "Allada", latitude: 6.6823, longitude: 2.1547 },
+            { id: 13, nom: "Hôpital de Zone d'Ouidah", type: "HZ", nature: "Public", departement: "Atlantique", commune: "Ouidah", latitude: 6.3623, longitude: 2.0845 },
+            { id: 14, nom: "Hôpital de Zone de Bohicon", type: "HZ", nature: "Public", departement: "Zou", commune: "Bohicon", latitude: 7.1723, longitude: 2.0845 },
+            { id: 15, nom: "Hôpital de Zone de Djidja", type: "HZ", nature: "Public", departement: "Zou", commune: "Djidja", latitude: 7.2623, longitude: 1.9545 },
+            { id: 16, nom: "Hôpital de Zone de Dassa-Zoumè", type: "HZ", nature: "Public", departement: "Collines", commune: "Dassa-Zoumè", latitude: 7.7823, longitude: 2.1845 },
+            { id: 17, nom: "Hôpital de Zone de Glazoué", type: "HZ", nature: "Public", departement: "Collines", commune: "Glazoué", latitude: 7.9823, longitude: 2.2145 },
+            { id: 18, nom: "Hôpital de Zone de Savè", type: "HZ", nature: "Public", departement: "Collines", commune: "Savè", latitude: 8.0823, longitude: 2.4145 },
+            { id: 19, nom: "Hôpital de Zone de Bantè", type: "HZ", nature: "Public", departement: "Collines", commune: "Bantè", latitude: 8.3823, longitude: 1.8845 },
+            { id: 20, nom: "Hôpital de Zone de Bassila", type: "HZ", nature: "Public", departement: "Donga", commune: "Bassila", latitude: 9.4823, longitude: 1.6245 },
+            { id: 21, nom: "Hôpital de Zone de Copargo", type: "HZ", nature: "Public", departement: "Donga", commune: "Copargo", latitude: 9.8523, longitude: 1.5545 },
+            { id: 22, nom: "Hôpital de Zone de Ouaké", type: "HZ", nature: "Public", departement: "Donga", commune: "Ouaké", latitude: 9.8823, longitude: 1.4545 },
+            { id: 23, nom: "Hôpital de Zone de N'Dali", type: "HZ", nature: "Public", departement: "Borgou", commune: "N'Dali", latitude: 9.7023, longitude: 2.7145 },
+            { id: 24, nom: "Hôpital de Zone de Tchaourou", type: "HZ", nature: "Public", departement: "Borgou", commune: "Tchaourou", latitude: 9.1823, longitude: 2.5845 },
+            { id: 25, nom: "Hôpital de Zone de Bembèrèkè", type: "HZ", nature: "Public", departement: "Borgou", commune: "Bembèrèkè", latitude: 10.3423, longitude: 2.6545 },
+            { id: 26, nom: "Hôpital de Zone de Kalalé", type: "HZ", nature: "Public", departement: "Borgou", commune: "Kalalé", latitude: 10.2823, longitude: 3.3745 },
+            { id: 27, nom: "Hôpital de Zone de Péhunco", type: "HZ", nature: "Public", departement: "Borgou", commune: "Péhunco", latitude: 10.2423, longitude: 2.4545 },
+            { id: 28, nom: "Hôpital de Zone de Kandi", type: "HZ", nature: "Public", departement: "Alibori", commune: "Kandi", latitude: 11.1323, longitude: 2.9345 },
+            { id: 29, nom: "Hôpital de Zone de Banikoara", type: "HZ", nature: "Public", departement: "Alibori", commune: "Banikoara", latitude: 10.2823, longitude: 2.4145 },
+            { id: 30, nom: "Hôpital de Zone de Gogounou", type: "HZ", nature: "Public", departement: "Alibori", commune: "Gogounou", latitude: 10.4623, longitude: 2.8445 },
+            { id: 31, nom: "Hôpital de Zone de Ségbana", type: "HZ", nature: "Public", departement: "Alibori", commune: "Ségbana", latitude: 10.9623, longitude: 3.1845 },
+            { id: 32, nom: "Hôpital de Zone de Karimama", type: "HZ", nature: "Public", departement: "Alibori", commune: "Karimama", latitude: 11.5823, longitude: 3.2645 },
+            { id: 33, nom: "Hôpital de Zone de Comè", type: "HZ", nature: "Public", departement: "Mono", commune: "Comè", latitude: 6.4323, longitude: 1.8845 },
+            { id: 34, nom: "Hôpital de Zone de Houéyogbé", type: "HZ", nature: "Public", departement: "Mono", commune: "Houéyogbé", latitude: 6.5023, longitude: 1.8245 },
+            { id: 35, nom: "Hôpital de Zone de Bopa", type: "HZ", nature: "Public", departement: "Mono", commune: "Bopa", latitude: 6.6023, longitude: 1.9445 },
+            { id: 36, nom: "Hôpital de Zone d'Aplahoué", type: "HZ", nature: "Public", departement: "Couffo", commune: "Aplahoué", latitude: 6.9223, longitude: 1.6845 },
+            { id: 37, nom: "Hôpital de Zone de Djakotomey", type: "HZ", nature: "Public", departement: "Couffo", commune: "Djakotomey", latitude: 6.8823, longitude: 1.7445 },
+            { id: 38, nom: "Hôpital de Zone de Kétou", type: "HZ", nature: "Public", departement: "Plateau", commune: "Kétou", latitude: 7.3623, longitude: 2.5845 },
+            { id: 39, nom: "Hôpital de Zone de Sakété", type: "HZ", nature: "Public", departement: "Plateau", commune: "Sakété", latitude: 6.7423, longitude: 2.6845 },
+            { id: 40, nom: "Hôpital de Zone d'Ifangni", type: "HZ", nature: "Public", departement: "Plateau", commune: "Ifangni", latitude: 6.8723, longitude: 2.7045 },
+            { id: 41, nom: "Hôpital de Zone d'Adja-Ouèrè", type: "HZ", nature: "Public", departement: "Plateau", commune: "Adja-Ouèrè", latitude: 6.9523, longitude: 2.7245 },
+            { id: 42, nom: "Hôpital de Zone de Natitingou", type: "HZ", nature: "Public", departement: "Atacora", commune: "Natitingou", latitude: 10.3045, longitude: 1.3823 },
+            { id: 43, nom: "Hôpital de Zone de Tanguiéta", type: "HZ", nature: "Public", departement: "Atacora", commune: "Tanguiéta", latitude: 10.6212, longitude: 1.2612 },
+            { id: 44, nom: "Hôpital de Zone de Boukoumbé", type: "HZ", nature: "Public", departement: "Atacora", commune: "Boukoumbé", latitude: 10.1845, longitude: 1.1012 },
+            { id: 45, nom: "Hôpital de Zone de Matéri", type: "HZ", nature: "Public", departement: "Atacora", commune: "Matéri", latitude: 10.7512, longitude: 1.0345 },
+            { id: 46, nom: "Hôpital de Zone de Kérou", type: "HZ", nature: "Public", departement: "Atacora", commune: "Kérou", latitude: 10.4212, longitude: 1.4012 },
+            { id: 47, nom: "Hôpital de Zone de Covè", type: "HZ", nature: "Public", departement: "Zou", commune: "Covè", latitude: 7.2223, longitude: 2.3545 },
+            { id: 48, nom: "Hôpital de Zone de Za-Kpota", type: "HZ", nature: "Public", departement: "Zou", commune: "Za-Kpota", latitude: 7.2223, longitude: 2.2045 },
+            
+            // CENTRE DE SANTÉ (118) - Public
+            { id: 49, nom: "Centre de Santé d'Abomey-Calavi Centre", type: "CS", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4485, longitude: 2.3387 },
+            { id: 50, nom: "Centre de Santé d'Akassato", type: "CS", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.5123, longitude: 2.3856 },
+            { id: 51, nom: "Centre de Santé de Glo-Djigbé", type: "CS", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.5821, longitude: 2.4512 },
+            { id: 52, nom: "Centre de Santé de Godomey", type: "CS", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4123, longitude: 2.3245 },
+            { id: 53, nom: "Centre de Santé de Sékandji", type: "CS", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4745, longitude: 2.3612 },
+            { id: 54, nom: "Centre de Santé d'Attogon", type: "CS", nature: "Public", departement: "Atlantique", commune: "Allada", latitude: 6.7234, longitude: 2.1856 },
+            { id: 55, nom: "Centre de Santé de Togudo", type: "CS", nature: "Public", departement: "Atlantique", commune: "Allada", latitude: 6.7456, longitude: 2.1234 },
+            { id: 56, nom: "Centre de Santé d'Avamé", type: "CS", nature: "Public", departement: "Atlantique", commune: "Allada", latitude: 6.7523, longitude: 2.1723 },
+            { id: 57, nom: "Centre de Santé de Kpomassè Centre", type: "CS", nature: "Public", departement: "Atlantique", commune: "Kpomassè", latitude: 6.6523, longitude: 2.2845 },
+            { id: 58, nom: "Centre de Santé d'Adjohoun", type: "CS", nature: "Public", departement: "Atlantique", commune: "Kpomassè", latitude: 6.6345, longitude: 2.3123 },
+            { id: 59, nom: "Centre de Santé de Pahou", type: "CS", nature: "Public", departement: "Atlantique", commune: "Ouidah", latitude: 6.3856, longitude: 2.1234 },
+            { id: 60, nom: "Centre de Santé de Djegbadji", type: "CS", nature: "Public", departement: "Atlantique", commune: "Ouidah", latitude: 6.3234, longitude: 2.0567 },
+            { id: 61, nom: "Centre de Santé de Toffo Centre", type: "CS", nature: "Public", departement: "Atlantique", commune: "Toffo", latitude: 6.8523, longitude: 2.1145 },
+            { id: 62, nom: "Centre de Santé de Houégbo", type: "CS", nature: "Public", departement: "Atlantique", commune: "Toffo", latitude: 6.8856, longitude: 2.1523 },
+            { id: 63, nom: "Centre de Santé d'Agué", type: "CS", nature: "Public", departement: "Atlantique", commune: "Toffo", latitude: 6.9123, longitude: 2.0845 },
+            { id: 64, nom: "Centre de Santé de Dohi", type: "CS", nature: "Public", departement: "Atlantique", commune: "Toffo", latitude: 6.8923, longitude: 2.1345 },
+            { id: 65, nom: "Centre de Santé de Tori-Bossito", type: "CS", nature: "Public", departement: "Atlantique", commune: "Tori-Bossito", latitude: 6.7234, longitude: 2.2856 },
+            { id: 66, nom: "Centre de Santé de Tori-Cada", type: "CS", nature: "Public", departement: "Atlantique", commune: "Tori-Bossito", latitude: 6.7456, longitude: 2.3123 },
+            { id: 67, nom: "Centre de Santé de Zè Centre", type: "CS", nature: "Public", departement: "Atlantique", commune: "Zè", latitude: 6.5523, longitude: 2.4845 },
+            { id: 68, nom: "Centre de Santé de Djégbadji Zè", type: "CS", nature: "Public", departement: "Atlantique", commune: "Zè", latitude: 6.5856, longitude: 2.5123 },
+            { id: 69, nom: "Centre de Santé de So-Ava", type: "CS", nature: "Public", departement: "Atlantique", commune: "So-Ava", latitude: 6.4823, longitude: 2.4145 },
+            { id: 70, nom: "Centre de Santé de Vekky", type: "CS", nature: "Public", departement: "Atlantique", commune: "So-Ava", latitude: 6.4956, longitude: 2.4323 },
+            { id: 71, nom: "Centre de Santé d'Ahome", type: "CS", nature: "Public", departement: "Atlantique", commune: "So-Ava", latitude: 6.4712, longitude: 2.3945 },
+            { id: 72, nom: "Centre de Santé d'Adjara", type: "CS", nature: "Public", departement: "Atlantique", commune: "Adjara", latitude: 6.5234, longitude: 2.4123 },
+            { id: 73, nom: "Centre de Santé de Menontin", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3589, longitude: 2.3856 },
+            { id: 74, nom: "Centre de Santé de Vodje", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3712, longitude: 2.4123 },
+            { id: 75, nom: "Centre de Santé de Gbégamey", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3656, longitude: 2.3723 },
+            { id: 76, nom: "Centre de Santé d'Agla", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3856, longitude: 2.3712 },
+            { id: 77, nom: "Centre de Santé d'Akpakpa", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3556, longitude: 2.3912 },
+            { id: 78, nom: "Centre de Santé de Fidjrossè", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3423, longitude: 2.3745 },
+            { id: 79, nom: "Centre de Santé d'Aïbatin", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3645, longitude: 2.3612 },
+            { id: 80, nom: "Centre de Santé de Ladji", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3923, longitude: 2.4245 },
+            { id: 81, nom: "Centre de Santé de Patte d'Oie", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3689, longitude: 2.3789 },
+            { id: 82, nom: "Centre de Santé de Houéyiho", type: "CS", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3612, longitude: 2.3923 },
+            { id: 83, nom: "Centre de Santé de Porto-Novo Centre", type: "CS", nature: "Public", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.4923, longitude: 2.6145 },
+            { id: 84, nom: "Centre de Santé d'Akpro-Missérété", type: "CS", nature: "Public", departement: "Ouémé", commune: "Akpro-Missérété", latitude: 6.5423, longitude: 2.6545 },
+            { id: 85, nom: "Centre de Santé d'Avrankou", type: "CS", nature: "Public", departement: "Ouémé", commune: "Avrankou", latitude: 6.5512, longitude: 2.6545 },
+            { id: 86, nom: "Centre de Santé de Dangbo", type: "CS", nature: "Public", departement: "Ouémé", commune: "Dangbo", latitude: 6.4823, longitude: 2.5645 },
+            { id: 87, nom: "Centre de Santé de Bonou", type: "CS", nature: "Public", departement: "Ouémé", commune: "Bonou", latitude: 6.5823, longitude: 2.4945 },
+            { id: 88, nom: "Centre de Santé d'Aguégués", type: "CS", nature: "Public", departement: "Ouémé", commune: "Aguégués", latitude: 6.4923, longitude: 2.5545 },
+            { id: 89, nom: "Centre de Santé de Sèmè-Kpodji", type: "CS", nature: "Public", departement: "Ouémé", commune: "Sèmè-Kpodji", latitude: 6.3823, longitude: 2.5145 },
+            { id: 90, nom: "Centre de Santé d'Adjarra Ouémé", type: "CS", nature: "Public", departement: "Ouémé", commune: "Adjara", latitude: 6.5223, longitude: 2.6045 },
+            { id: 91, nom: "Centre de Santé de Pobè Centre", type: "CS", nature: "Public", departement: "Plateau", commune: "Pobè", latitude: 6.9823, longitude: 2.6745 },
+            { id: 92, nom: "Centre de Santé d'Adja-Ouèrè", type: "CS", nature: "Public", departement: "Plateau", commune: "Adja-Ouèrè", latitude: 6.9523, longitude: 2.7045 },
+            { id: 93, nom: "Centre de Santé de Kétou Centre", type: "CS", nature: "Public", departement: "Plateau", commune: "Kétou", latitude: 7.3623, longitude: 2.5745 },
+            { id: 94, nom: "Centre de Santé d'Ifangni", type: "CS", nature: "Public", departement: "Plateau", commune: "Ifangni", latitude: 6.8623, longitude: 2.6945 },
+            { id: 95, nom: "Centre de Santé de Sakété", type: "CS", nature: "Public", departement: "Plateau", commune: "Sakété", latitude: 6.7423, longitude: 2.6745 },
+            { id: 96, nom: "Centre de Santé d'Abomey Centre", type: "CS", nature: "Public", departement: "Zou", commune: "Abomey", latitude: 7.1823, longitude: 2.1045 },
+            { id: 97, nom: "Centre de Santé de Bohicon Centre", type: "CS", nature: "Public", departement: "Zou", commune: "Bohicon", latitude: 7.1723, longitude: 2.0745 },
+            { id: 98, nom: "Centre de Santé de Djidja CS", type: "CS", nature: "Public", departement: "Zou", commune: "Djidja", latitude: 7.2523, longitude: 1.9645 },
+            { id: 99, nom: "Centre de Santé de Zakpota", type: "CS", nature: "Public", departement: "Zou", commune: "Zakpota", latitude: 7.2023, longitude: 2.1245 },
+            { id: 100, nom: "Centre de Santé de Zogbodomey", type: "CS", nature: "Public", departement: "Zou", commune: "Zogbodomey", latitude: 7.0523, longitude: 2.0345 },
+            { id: 101, nom: "Centre de Santé de Covè CS", type: "CS", nature: "Public", departement: "Zou", commune: "Covè", latitude: 7.2123, longitude: 2.3645 },
+            { id: 102, nom: "Centre de Santé de Savalou Centre", type: "CS", nature: "Public", departement: "Collines", commune: "Savalou", latitude: 7.9223, longitude: 1.9745 },
+            { id: 103, nom: "Centre de Santé de Savè Centre", type: "CS", nature: "Public", departement: "Collines", commune: "Savè", latitude: 8.0723, longitude: 2.4145 },
+            { id: 104, nom: "Centre de Santé de Glazoué Centre", type: "CS", nature: "Public", departement: "Collines", commune: "Glazoué", latitude: 7.9723, longitude: 2.2045 },
+            { id: 105, nom: "Centre de Santé de Dassa-Zoumè Centre", type: "CS", nature: "Public", departement: "Collines", commune: "Dassa-Zoumè", latitude: 7.7723, longitude: 2.1745 },
+            { id: 106, nom: "Centre de Santé d'Ouèssè", type: "CS", nature: "Public", departement: "Collines", commune: "Ouèssè", latitude: 8.2523, longitude: 2.3745 },
+            { id: 107, nom: "Centre de Santé de Bantè Centre", type: "CS", nature: "Public", departement: "Collines", commune: "Bantè", latitude: 8.3623, longitude: 1.8845 },
+            { id: 108, nom: "Centre de Santé de Djougou Centre", type: "CS", nature: "Public", departement: "Donga", commune: "Djougou", latitude: 9.7023, longitude: 1.6545 },
+            { id: 109, nom: "Centre de Santé de Bassila Centre", type: "CS", nature: "Public", departement: "Donga", commune: "Bassila", latitude: 9.4723, longitude: 1.6245 },
+            { id: 110, nom: "Centre de Santé de Copargo Centre", type: "CS", nature: "Public", departement: "Donga", commune: "Copargo", latitude: 9.8423, longitude: 1.5645 },
+            { id: 111, nom: "Centre de Santé de Ouaké Centre", type: "CS", nature: "Public", departement: "Donga", commune: "Ouaké", latitude: 9.8723, longitude: 1.4645 },
+            { id: 112, nom: "Centre de Santé de Parakou Centre", type: "CS", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3423, longitude: 2.6145 },
+            { id: 113, nom: "Centre de Santé de N'Dali Centre", type: "CS", nature: "Public", departement: "Borgou", commune: "N'Dali", latitude: 9.6923, longitude: 2.7245 },
+            { id: 114, nom: "Centre de Santé de Tchaourou Centre", type: "CS", nature: "Public", departement: "Borgou", commune: "Tchaourou", latitude: 9.1723, longitude: 2.5745 },
+            { id: 115, nom: "Centre de Santé de Péhunco CS", type: "CS", nature: "Public", departement: "Borgou", commune: "Péhunco", latitude: 10.2323, longitude: 2.4645 },
+            { id: 116, nom: "Centre de Santé de Bembèrèkè Centre", type: "CS", nature: "Public", departement: "Borgou", commune: "Bembèrèkè", latitude: 10.3323, longitude: 2.6645 },
+            { id: 117, nom: "Centre de Santé de Kalalé Centre", type: "CS", nature: "Public", departement: "Borgou", commune: "Kalalé", latitude: 10.2723, longitude: 3.3845 },
+            { id: 118, nom: "Centre de Santé de Biro", type: "CS", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.4123, longitude: 2.6345 },
+            { id: 119, nom: "Centre de Santé de Tourou", type: "CS", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3623, longitude: 2.6745 },
+            { id: 120, nom: "Centre de Santé de Perma", type: "CS", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3223, longitude: 2.5945 },
+            { id: 121, nom: "Centre de Santé de Guéma", type: "CS", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3823, longitude: 2.6245 },
+            { id: 122, nom: "Centre de Santé de Malanville Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.8823, longitude: 3.3745 },
+            { id: 123, nom: "Centre de Santé de Gali", type: "CS", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.9045, longitude: 3.3912 },
+            { id: 124, nom: "Centre de Santé de Tassi", type: "CS", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.8945, longitude: 3.4012 },
+            { id: 125, nom: "Centre de Santé de Kandi Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Kandi", latitude: 11.1323, longitude: 2.9345 },
+            { id: 126, nom: "Centre de Santé de Sonsoro", type: "CS", nature: "Public", departement: "Alibori", commune: "Kandi", latitude: 11.1545, longitude: 2.9512 },
+            { id: 127, nom: "Centre de Santé d'Angaradébou", type: "CS", nature: "Public", departement: "Alibori", commune: "Kandi", latitude: 11.1145, longitude: 2.9112 },
+            { id: 128, nom: "Centre de Santé de Boderou", type: "CS", nature: "Public", departement: "Alibori", commune: "Kandi", latitude: 11.1712, longitude: 2.9612 },
+            { id: 129, nom: "Centre de Santé de Banikoara Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Banikoara", latitude: 10.2823, longitude: 2.4145 },
+            { id: 130, nom: "Centre de Santé de Goumori", type: "CS", nature: "Public", departement: "Alibori", commune: "Banikoara", latitude: 10.3045, longitude: 2.4312 },
+            { id: 131, nom: "Centre de Santé de Gogounou Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Gogounou", latitude: 10.4623, longitude: 2.8445 },
+            { id: 132, nom: "Centre de Santé de Gounarou", type: "CS", nature: "Public", departement: "Alibori", commune: "Gogounou", latitude: 10.4845, longitude: 2.8612 },
+            { id: 133, nom: "Centre de Santé de Ségbana Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Ségbana", latitude: 10.9623, longitude: 3.1845 },
+            { id: 134, nom: "Centre de Santé de Libantè", type: "CS", nature: "Public", departement: "Alibori", commune: "Ségbana", latitude: 10.9845, longitude: 3.2012 },
+            { id: 135, nom: "Centre de Santé de Karimama Centre", type: "CS", nature: "Public", departement: "Alibori", commune: "Karimama", latitude: 11.5823, longitude: 3.2645 },
+            { id: 136, nom: "Centre de Santé de Monsey", type: "CS", nature: "Public", departement: "Alibori", commune: "Karimama", latitude: 11.6045, longitude: 3.2812 },
+            { id: 137, nom: "Centre de Santé de Lokossa Centre", type: "CS", nature: "Public", departement: "Mono", commune: "Lokossa", latitude: 6.6723, longitude: 1.7045 },
+            { id: 138, nom: "Centre de Santé de Houin", type: "CS", nature: "Public", departement: "Mono", commune: "Lokossa", latitude: 6.6945, longitude: 1.7212 },
+            { id: 139, nom: "Centre de Santé de Comè Centre", type: "CS", nature: "Public", departement: "Mono", commune: "Comè", latitude: 6.4323, longitude: 1.8845 },
+            { id: 140, nom: "Centre de Santé d'Ouedèmè", type: "CS", nature: "Public", departement: "Mono", commune: "Comè", latitude: 6.4545, longitude: 1.9012 },
+            { id: 141, nom: "Centre de Santé de Houéyogbé Centre", type: "CS", nature: "Public", departement: "Mono", commune: "Houéyogbé", latitude: 6.5023, longitude: 1.8245 },
+            { id: 142, nom: "Centre de Santé de Dèdomè", type: "CS", nature: "Public", departement: "Mono", commune: "Houéyogbé", latitude: 6.5245, longitude: 1.8412 },
+            { id: 143, nom: "Centre de Santé de Kpinnou", type: "CS", nature: "Public", departement: "Mono", commune: "Houéyogbé", latitude: 6.5345, longitude: 1.8112 },
+            { id: 144, nom: "Centre de Santé d'Athiémè Centre", type: "CS", nature: "Public", departement: "Mono", commune: "Athiémè", latitude: 6.5623, longitude: 1.6845 },
+            { id: 145, nom: "Centre de Santé de Dèmè", type: "CS", nature: "Public", departement: "Mono", commune: "Athiémè", latitude: 6.5845, longitude: 1.7012 },
+            { id: 146, nom: "Centre de Santé d'Agbanou Mono", type: "CS", nature: "Public", departement: "Mono", commune: "Athiémè", latitude: 6.5745, longitude: 1.6912 },
+            { id: 147, nom: "Centre de Santé de Bopa Centre", type: "CS", nature: "Public", departement: "Mono", commune: "Bopa", latitude: 6.6023, longitude: 1.9445 },
+            { id: 148, nom: "Centre de Santé de Lobogo", type: "CS", nature: "Public", departement: "Mono", commune: "Bopa", latitude: 6.6245, longitude: 1.9612 },
+            { id: 149, nom: "Centre de Santé d'Aplahoué Centre", type: "CS", nature: "Public", departement: "Couffo", commune: "Aplahoué", latitude: 6.9323, longitude: 1.6745 },
+            { id: 150, nom: "Centre de Santé de Dékpo", type: "CS", nature: "Public", departement: "Couffo", commune: "Aplahoué", latitude: 6.9545, longitude: 1.6912 },
+            { id: 151, nom: "Centre de Santé de Djakotomey Centre", type: "CS", nature: "Public", departement: "Couffo", commune: "Djakotomey", latitude: 6.8823, longitude: 1.7445 },
+            { id: 152, nom: "Centre de Santé de Kinkinhoué", type: "CS", nature: "Public", departement: "Couffo", commune: "Djakotomey", latitude: 6.9045, longitude: 1.7612 },
+            { id: 153, nom: "Centre de Santé de Lalo Centre", type: "CS", nature: "Public", departement: "Couffo", commune: "Lalo", latitude: 6.9423, longitude: 1.8645 },
+            { id: 154, nom: "Centre de Santé d'Hlassamè", type: "CS", nature: "Public", departement: "Couffo", commune: "Lalo", latitude: 6.9645, longitude: 1.8812 },
+            { id: 155, nom: "Centre de Santé de Klouékanmè", type: "CS", nature: "Public", departement: "Couffo", commune: "Klouékanmè", latitude: 6.8223, longitude: 1.7845 },
+            { id: 156, nom: "Centre de Santé de Tchi", type: "CS", nature: "Public", departement: "Couffo", commune: "Klouékanmè", latitude: 6.8445, longitude: 1.8012 },
+            { id: 157, nom: "Centre de Santé de Toviklin", type: "CS", nature: "Public", departement: "Couffo", commune: "Toviklin", latitude: 6.8623, longitude: 1.8045 },
+            { id: 158, nom: "Centre de Santé de Natitingou Centre", type: "CS", nature: "Public", departement: "Atacora", commune: "Natitingou", latitude: 10.3123, longitude: 1.3912 },
+            { id: 159, nom: "Centre de Santé de Tanguiéta Centre", type: "CS", nature: "Public", departement: "Atacora", commune: "Tanguiéta", latitude: 10.6312, longitude: 1.2712 },
+            { id: 160, nom: "Centre de Santé de Boukoumbé Centre", type: "CS", nature: "Public", departement: "Atacora", commune: "Boukoumbé", latitude: 10.1945, longitude: 1.1112 },
+            { id: 161, nom: "Centre de Santé de Matéri Centre", type: "CS", nature: "Public", departement: "Atacora", commune: "Matéri", latitude: 10.7612, longitude: 1.0445 },
+            { id: 162, nom: "Centre de Santé de Kérou Centre", type: "CS", nature: "Public", departement: "Atacora", commune: "Kérou", latitude: 10.4312, longitude: 1.4112 },
+            { id: 163, nom: "Centre de Santé de Kobli", type: "CS", nature: "Public", departement: "Atacora", commune: "Kobli", latitude: 10.5212, longitude: 1.5312 },
+            { id: 164, nom: "Centre de Santé de Cobly", type: "CS", nature: "Public", departement: "Atacora", commune: "Cobly", latitude: 10.3812, longitude: 1.1912 },
+            { id: 165, nom: "Centre de Santé de Pèhunco Atacora", type: "CS", nature: "Public", departement: "Atacora", commune: "Péhunco", latitude: 10.2112, longitude: 1.8812 },
+            { id: 166, nom: "Centre de Santé de Boukombe", type: "CS", nature: "Public", departement: "Atacora", commune: "Boukombe", latitude: 10.1812, longitude: 1.1212 },
+            
+            // MATERNITÉ (15) - Mixte Public/Privé
+            { id: 167, nom: "Maternité Sainte Anne", type: "Maternité", nature: "Privé", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4556, longitude: 2.3612 },
+            { id: 168, nom: "Maternité Sainte Marie", type: "Maternité", nature: "Privé", departement: "Atlantique", commune: "Ouidah", latitude: 6.3745, longitude: 2.0912 },
+            { id: 169, nom: "Maternité Sainte Rita", type: "Maternité", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3745, longitude: 2.3812 },
+            { id: 170, nom: "Maternité Houéyiho", type: "Maternité", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3612, longitude: 2.3923 },
+            { id: 171, nom: "Maternité Sainte Elisabeth", type: "Maternité", nature: "Privé", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.4812, longitude: 2.6189 },
+            { id: 172, nom: "Maternité de Kétou", type: "Maternité", nature: "Public", departement: "Plateau", commune: "Kétou", latitude: 7.3745, longitude: 2.5912 },
+            { id: 173, nom: "Maternité de Bohicon", type: "Maternité", nature: "Public", departement: "Zou", commune: "Bohicon", latitude: 7.1756, longitude: 2.0823 },
+            { id: 174, nom: "Maternité de Glazoué", type: "Maternité", nature: "Public", departement: "Collines", commune: "Glazoué", latitude: 7.9856, longitude: 2.2212 },
+            { id: 175, nom: "Maternité de Bassila", type: "Maternité", nature: "Public", departement: "Donga", commune: "Bassila", latitude: 9.4912, longitude: 1.6312 },
+            { id: 176, nom: "Maternité de N'Dali", type: "Maternité", nature: "Public", departement: "Borgou", commune: "N'Dali", latitude: 9.7112, longitude: 2.7212 },
+            { id: 177, nom: "Maternité de Malanville", type: "Maternité", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.8856, longitude: 3.3812 },
+            { id: 178, nom: "Maternité de Comè", type: "Maternité", nature: "Public", departement: "Mono", commune: "Comè", latitude: 6.4412, longitude: 1.8912 },
+            { id: 179, nom: "Maternité de Djougou", type: "Maternité", nature: "Public", departement: "Donga", commune: "Djougou", latitude: 9.7212, longitude: 1.6712 },
+            { id: 180, nom: "Maternité de Parakou", type: "Maternité", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3612, longitude: 2.6412 },
+            { id: 181, nom: "Maternité de Natitingou", type: "Maternité", nature: "Public", departement: "Atacora", commune: "Natitingou", latitude: 10.3212, longitude: 1.4012 },
+            
+            // CLINIQUE (37) - Toutes Privé
+            { id: 182, nom: "Clinique Notre Dame de Lourdes", type: "Clinique", nature: "Privé", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4632, longitude: 2.3521 },
+            { id: 183, nom: "Clinique les Lauriers", type: "Clinique", nature: "Privé", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4423, longitude: 2.3545 },
+            { id: 184, nom: "Clinique Saint Jean Ouidah", type: "Clinique", nature: "Privé", departement: "Atlantique", commune: "Ouidah", latitude: 6.3823, longitude: 2.0845 },
+            { id: 185, nom: "Clinique du Port", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3623, longitude: 2.4245 },
+            { id: 186, nom: "Clinique Protestante", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3856, longitude: 2.4023 },
+            { id: 187, nom: "Clinique Saint François", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3812, longitude: 2.3956 },
+            { id: 188, nom: "Clinique Saint Georges", type: "Clinique", nature: "Privé", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.4856, longitude: 2.6212 },
+            { id: 189, nom: "Clinique de l'Espoir", type: "Clinique", nature: "Privé", departement: "Ouémé", commune: "Avrankou", latitude: 6.5512, longitude: 2.6612 },
+            { id: 190, nom: "Clinique Sainte Anne Pobè", type: "Clinique", nature: "Privé", departement: "Plateau", commune: "Pobè", latitude: 6.9856, longitude: 2.6812 },
+            { id: 191, nom: "Clinique Notre Dame d'Abomey", type: "Clinique", nature: "Privé", departement: "Zou", commune: "Abomey", latitude: 7.1856, longitude: 2.1212 },
+            { id: 192, nom: "Clinique Saint Jean Savalou", type: "Clinique", nature: "Privé", departement: "Collines", commune: "Savalou", latitude: 7.9256, longitude: 1.9812 },
+            { id: 193, nom: "Clinique Saint Luc Djougou", type: "Clinique", nature: "Privé", departement: "Donga", commune: "Djougou", latitude: 9.7156, longitude: 1.6712 },
+            { id: 194, nom: "Clinique les Etoiles", type: "Clinique", nature: "Privé", departement: "Borgou", commune: "Parakou", latitude: 9.3556, longitude: 2.6212 },
+            { id: 195, nom: "Clinique Saint François Kandi", type: "Clinique", nature: "Privé", departement: "Alibori", commune: "Kandi", latitude: 11.1412, longitude: 2.9412 },
+            { id: 196, nom: "Clinique Sainte Anne Lokossa", type: "Clinique", nature: "Privé", departement: "Mono", commune: "Lokossa", latitude: 6.6656, longitude: 1.7112 },
+            { id: 197, nom: "Clinique de l'Amitié", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3712, longitude: 2.4112 },
+            { id: 198, nom: "Clinique de la Paix", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3612, longitude: 2.4012 },
+            { id: 199, nom: "Clinique Saint Michel", type: "Clinique", nature: "Privé", departement: "Littoral", commune: "Cotonou", latitude: 6.3812, longitude: 2.3812 },
+            { id: 200, nom: "Clinique du Plateau", type: "Clinique", nature: "Privé", departement: "Plateau", commune: "Porto-Novo", latitude: 6.4912, longitude: 2.6312 },
+            { id: 201, nom: "Clinique de l'Union", type: "Clinique", nature: "Privé", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.5012, longitude: 2.6112 },
+            { id: 202, nom: "Clinique d'Abomey", type: "Clinique", nature: "Privé", departement: "Zou", commune: "Abomey", latitude: 7.1912, longitude: 2.1112 },
+            { id: 203, nom: "Clinique de Bohicon", type: "Clinique", nature: "Privé", departement: "Zou", commune: "Bohicon", latitude: 7.1812, longitude: 2.0912 },
+            { id: 204, nom: "Clinique de Dassa", type: "Clinique", nature: "Privé", departement: "Collines", commune: "Dassa-Zoumè", latitude: 7.7912, longitude: 2.2012 },
+            { id: 205, nom: "Clinique de Savè", type: "Clinique", nature: "Privé", departement: "Collines", commune: "Savè", latitude: 8.0912, longitude: 2.4312 },
+            { id: 206, nom: "Clinique de Copargo", type: "Clinique", nature: "Privé", departement: "Donga", commune: "Copargo", latitude: 9.8612, longitude: 1.5712 },
+            { id: 207, nom: "Clinique de Ouaké", type: "Clinique", nature: "Privé", departement: "Donga", commune: "Ouaké", latitude: 9.8912, longitude: 1.4912 },
+            { id: 208, nom: "Clinique de N'Dali", type: "Clinique", nature: "Privé", departement: "Borgou", commune: "N'Dali", latitude: 9.7112, longitude: 2.7412 },
+            { id: 209, nom: "Clinique de Tchaourou", type: "Clinique", nature: "Privé", departement: "Borgou", commune: "Tchaourou", latitude: 9.1912, longitude: 2.5912 },
+            { id: 210, nom: "Clinique de Bembèrèkè", type: "Clinique", nature: "Privé", departement: "Borgou", commune: "Bembèrèkè", latitude: 10.3512, longitude: 2.6712 },
+            { id: 211, nom: "Clinique de Kalalé", type: "Clinique", nature: "Privé", departement: "Borgou", commune: "Kalalé", latitude: 10.2912, longitude: 3.3912 },
+            { id: 212, nom: "Clinique de Banikoara", type: "Clinique", nature: "Privé", departement: "Alibori", commune: "Banikoara", latitude: 10.2912, longitude: 2.4312 },
+            { id: 213, nom: "Clinique de Gogounou", type: "Clinique", nature: "Privé", departement: "Alibori", commune: "Gogounou", latitude: 10.4712, longitude: 2.8612 },
+            { id: 214, nom: "Clinique de Ségbana", type: "Clinique", nature: "Privé", departement: "Alibori", commune: "Ségbana", latitude: 10.9712, longitude: 3.2112 },
+            { id: 215, nom: "Clinique de Comè", type: "Clinique", nature: "Privé", departement: "Mono", commune: "Comè", latitude: 6.4512, longitude: 1.9012 },
+            { id: 216, nom: "Clinique d'Aplahoué", type: "Clinique", nature: "Privé", departement: "Couffo", commune: "Aplahoué", latitude: 6.9412, longitude: 1.6912 },
+            { id: 217, nom: "Clinique de Natitingou", type: "Clinique", nature: "Privé", departement: "Atacora", commune: "Natitingou", latitude: 10.3312, longitude: 1.4112 },
+            { id: 218, nom: "Clinique de Tanguiéta", type: "Clinique", nature: "Privé", departement: "Atacora", commune: "Tanguiéta", latitude: 10.6412, longitude: 1.2812 },
+            
+            // DISPENSAIRE (15) - Public
+            { id: 219, nom: "Dispensaire d'Adjarra", type: "Dispensaire", nature: "Public", departement: "Atlantique", commune: "Adjara", latitude: 6.5234, longitude: 2.4123 },
+            { id: 220, nom: "Dispensaire de Godomey", type: "Dispensaire", nature: "Public", departement: "Atlantique", commune: "Abomey-Calavi", latitude: 6.4123, longitude: 2.3245 },
+            { id: 221, nom: "Dispensaire de Fidjrossè", type: "Dispensaire", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3423, longitude: 2.3745 },
+            { id: 222, nom: "Dispensaire d'Aïbatin", type: "Dispensaire", nature: "Public", departement: "Littoral", commune: "Cotonou", latitude: 6.3645, longitude: 2.3612 },
+            { id: 223, nom: "Dispensaire d'Ouando", type: "Dispensaire", nature: "Public", departement: "Ouémé", commune: "Porto-Novo", latitude: 6.5012, longitude: 2.6045 },
+            { id: 224, nom: "Dispensaire de Gbèdjimè", type: "Dispensaire", nature: "Public", departement: "Ouémé", commune: "Dangbo", latitude: 6.4945, longitude: 2.5812 },
+            { id: 225, nom: "Dispensaire d'Idigny", type: "Dispensaire", nature: "Public", departement: "Plateau", commune: "Pobè", latitude: 7.0245, longitude: 2.6812 },
+            { id: 226, nom: "Dispensaire d'Atchabigbadji", type: "Dispensaire", nature: "Public", departement: "Plateau", commune: "Kétou", latitude: 7.3512, longitude: 2.5723 },
+            { id: 227, nom: "Dispensaire d'Adimé", type: "Dispensaire", nature: "Public", departement: "Zou", commune: "Abomey", latitude: 7.2145, longitude: 2.0912 },
+            { id: 228, nom: "Dispensaire de Tchokpo", type: "Dispensaire", nature: "Public", departement: "Zou", commune: "Covè", latitude: 7.2312, longitude: 2.3812 },
+            { id: 229, nom: "Dispensaire de Kpataba", type: "Dispensaire", nature: "Public", departement: "Collines", commune: "Savalou", latitude: 7.9445, longitude: 1.9612 },
+            { id: 230, nom: "Dispensaire de Sérou", type: "Dispensaire", nature: "Public", departement: "Donga", commune: "Djougou", latitude: 9.7345, longitude: 1.6912 },
+            { id: 231, nom: "Dispensaire d'Alassa", type: "Dispensaire", nature: "Public", departement: "Borgou", commune: "Parakou", latitude: 9.3745, longitude: 2.6412 },
+            { id: 232, nom: "Dispensaire de Tassi", type: "Dispensaire", nature: "Public", departement: "Alibori", commune: "Malanville", latitude: 11.8945, longitude: 3.4012 },
+            { id: 233, nom: "Dispensaire d'Agbanou", type: "Dispensaire", nature: "Public", departement: "Mono", commune: "Athiémè", latitude: 6.5745, longitude: 1.6912 }
+        ];
+
+        // ==================== CONFIGURATION ====================
+        const typeConfig = {
+            "CHN": { color: "#e74c3c", icon: "fa-hospital", label: "Centre Hospitalier National" },
+            "CHD": { color: "#c0392b", icon: "fa-hospital-alt", label: "Centre Hospitalier Départemental" },
+            "HZ": { color: "#e67e22", icon: "fa-hospital-user", label: "Hôpital de Zone" },
+            "CS": { color: "#27ae60", icon: "fa-clinic-medical", label: "Centre de Santé" },
+            "Maternité": { color: "#e91e63", icon: "fa-baby", label: "Maternité" },
+            "Clinique": { color: "#9b59b6", icon: "fa-user-doctor", label: "Clinique" },
+            "Dispensaire": { color: "#3498db", icon: "fa-medkit", label: "Dispensaire" }
+        };
+
+        const departementCommunes = {
+            "Atlantique": ["Abomey-Calavi", "Allada", "Kpomassè", "Ouidah", "So-Ava", "Toffo", "Tori-Bossito", "Zè", "Adjara"],
+            "Littoral": ["Cotonou"],
+            "Ouémé": ["Porto-Novo", "Adjara", "Akpro-Missérété", "Avrankou", "Dangbo", "Bonou", "Aguégués", "Sèmè-Kpodji"],
+            "Plateau": ["Pobè", "Adja-Ouèrè", "Kétou", "Ifangni", "Sakété"],
+            "Zou": ["Abomey", "Bohicon", "Djidja", "Zakpota", "Za-Kpota", "Zogbodomey", "Covè"],
+            "Collines": ["Savalou", "Savè", "Glazoué", "Dassa-Zoumè", "Ouèssè", "Bantè"],
+            "Donga": ["Djougou", "Bassila", "Copargo", "Ouaké"],
+            "Borgou": ["Parakou", "N'Dali", "Tchaourou", "Péhunco", "Bembèrèkè", "Kalalé"],
+            "Alibori": ["Malanville", "Kandi", "Banikoara", "Gogounou", "Ségbana", "Karimama"],
+            "Mono": ["Lokossa", "Comè", "Houéyogbé", "Athiémè", "Bopa"],
+            "Couffo": ["Aplahoué", "Djakotomey", "Lalo", "Klouékanmè", "Toviklin"],
+            "Atacora": ["Natitingou", "Tanguiéta", "Boukoumbé", "Kérou", "Kobli", "Matéri", "Cobly", "Péhunco", "Boukombe"]
+        };
+
+        let visibleTypes = new Set(["CHN", "CHD", "HZ", "CS", "Maternité", "Clinique", "Dispensaire"]);
+        let userLocationMarker = null;
+
+        // ==================== INITIALISATION DE LA CARTE ====================
+        const map = L.map('map', {
+            zoomControl: true
+        }).setView([9.3, 2.3], 7);
+
+        const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri'
+        });
+
+        osmLayer.addTo(map);
+
+        // Ajouter contrôle d'échelle Leaflet
+        L.control.scale({
+            position: 'bottomleft',
+            imperial: false,
+            maxWidth: 200
+        }).addTo(map);
+
+        const markersLayer = L.layerGroup().addTo(map);
+
+        // ==================== FONCTION BARRE D'ÉCHELLE PERSONNALISÉE ====================
+        function updateScaleBar() {
+            const zoom = map.getZoom();
+            const scaleText = document.getElementById('scaleText');
+            const scaleLine = document.getElementById('scaleLine');
+            
+            // Échelles approximatives selon le niveau de zoom
+            const scales = {
+                5: { distance: 500, width: 100, unit: 'km' },
+                6: { distance: 200, width: 80, unit: 'km' },
+                7: { distance: 100, width: 100, unit: 'km' },
+                8: { distance: 50, width: 100, unit: 'km' },
+                9: { distance: 20, width: 80, unit: 'km' },
+                10: { distance: 10, width: 100, unit: 'km' },
+                11: { distance: 5, width: 100, unit: 'km' },
+                12: { distance: 2, width: 80, unit: 'km' },
+                13: { distance: 1, width: 100, unit: 'km' },
+                14: { distance: 500, width: 100, unit: 'm' },
+                15: { distance: 200, width: 80, unit: 'm' },
+                16: { distance: 100, width: 100, unit: 'm' },
+                17: { distance: 50, width: 100, unit: 'm' },
+                18: { distance: 20, width: 80, unit: 'm' }
+            };
+            
+            const scale = scales[zoom] || { distance: 100, width: 100, unit: 'km' };
+            scaleText.textContent = scale.distance + ' ' + scale.unit;
+            scaleLine.style.width = scale.width + 'px';
+        }
+
+        map.on('zoomend', updateScaleBar);
+        updateScaleBar();
+
+        // ==================== FONCTIONS ====================
+
+        function createIconMarker(type) {
+            const config = typeConfig[type] || { color: "#607d8b", icon: "fa-hospital" };
+            return L.divIcon({
+                className: 'custom-marker',
+                html: '<div class="marker-icon" style="color: ' + config.color + ';"><i class="fas ' + config.icon + '"></i></div>',
+                iconSize: [18, 18],
+                iconAnchor: [9, 9],
+                popupAnchor: [0, -9]
+            });
+        }
+
+        function addMarkers(facilities) {
+            markersLayer.clearLayers();
+
+            facilities.forEach(function(facility) {
+                if (!visibleTypes.has(facility.type)) return;
+
+                const marker = L.marker([facility.latitude, facility.longitude], {
+                    icon: createIconMarker(facility.type)
+                });
+
+                // Popup avec Nature (Public/Privé)
+                const natureClass = facility.nature === 'Public' ? 'nature-public' : 'nature-prive';
+                const popupContent = '<div class="popup-content">' +
+                    '<h4>' + facility.nom + '</h4>' +
+                    '<p><strong>Type:</strong> ' + (typeConfig[facility.type] ? typeConfig[facility.type].label : facility.type) + '</p>' +
+                    '<p><strong>Nature:</strong> <span class="' + natureClass + '">' + facility.nature + '</span></p>' +
+                    '<p><strong>Département:</strong> ' + facility.departement + '</p>' +
+                    '<p><strong>Commune:</strong> ' + facility.commune + '</p>' +
+                    '</div>';
+
+                marker.bindPopup(popupContent);
+                markersLayer.addLayer(marker);
+            });
+
+            const visible = facilities.filter(function(f) { return visibleTypes.has(f.type); }).length;
+            document.getElementById('filtered-count').textContent = visible;
+        }
+
+        function toggleType(type, visible) {
+            if (visible) {
+                visibleTypes.add(type);
+            } else {
+                visibleTypes.delete(type);
+            }
+            
+            const legendItem = document.querySelector('.legend-item[data-type="' + type + '"]');
+            if (legendItem) {
+                legendItem.classList.toggle('hidden-type', !visible);
+            }
+            
+            applyFilters();
+        }
+
+        function initFilters() {
+            const depSelect = document.getElementById('departement-filter');
+            const typeSelect = document.getElementById('type-filter');
+            
+            Object.keys(departementCommunes).sort().forEach(function(dep) {
+                const option = document.createElement('option');
+                option.value = dep;
+                option.textContent = dep;
+                depSelect.appendChild(option);
+            });
+
+            Object.keys(typeConfig).forEach(function(type) {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = typeConfig[type].label;
+                typeSelect.appendChild(option);
+            });
+
+            updateLegendCounts();
+        }
+
+        function updateLegendCounts() {
+            const counts = {};
+            healthFacilities.forEach(function(f) {
+                if (!counts[f.type]) counts[f.type] = 0;
+                counts[f.type]++;
+            });
+            
+            Object.keys(counts).forEach(function(type) {
+                const countEl = document.getElementById('count-' + type);
+                if (countEl) {
+                    countEl.textContent = counts[type];
+                }
+            });
+        }
+
+        function filterCommunes() {
+            const depSelect = document.getElementById('departement-filter');
+            const communeSelect = document.getElementById('commune-filter');
+            const selectedDep = depSelect.value;
+
+            communeSelect.innerHTML = '<option value="">Toutes les communes</option>';
+
+            if (selectedDep && departementCommunes[selectedDep]) {
+                departementCommunes[selectedDep].sort().forEach(function(commune) {
+                    const option = document.createElement('option');
+                    option.value = commune;
+                    option.textContent = commune;
+                    communeSelect.appendChild(option);
+                });
+            }
+
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const depFilter = document.getElementById('departement-filter').value;
+            const communeFilter = document.getElementById('commune-filter').value;
+            const typeFilter = document.getElementById('type-filter').value;
+            const natureFilter = document.getElementById('nature-filter').value;
+
+            let filtered = healthFacilities;
+
+            if (depFilter) {
+                filtered = filtered.filter(function(f) { return f.departement === depFilter; });
+            }
+
+            if (communeFilter) {
+                filtered = filtered.filter(function(f) { return f.commune === communeFilter; });
+            }
+
+            if (typeFilter) {
+                filtered = filtered.filter(function(f) { return f.type === typeFilter; });
+            }
+
+            if (natureFilter) {
+                filtered = filtered.filter(function(f) { return f.nature === natureFilter; });
+            }
+
+            addMarkers(filtered);
+
+            if (filtered.length > 0) {
+                const bounds = L.latLngBounds(filtered.map(function(f) { return [f.latitude, f.longitude]; }));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        function searchEstablishment() {
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
+            
+            if (!searchTerm) {
+                addMarkers(healthFacilities);
+                return;
+            }
+            
+            const filtered = healthFacilities.filter(function(f) { 
+                return f.nom.toLowerCase().indexOf(searchTerm) !== -1 ||
+                       f.commune.toLowerCase().indexOf(searchTerm) !== -1 ||
+                       f.departement.toLowerCase().indexOf(searchTerm) !== -1;
+            });
+            
+            addMarkers(filtered);
+            
+            if (filtered.length > 0) {
+                const bounds = L.latLngBounds(filtered.map(function(f) { return [f.latitude, f.longitude]; }));
+                map.fitBounds(bounds, { padding: [50, 50] });
+            } else {
+                alert('Aucun établissement trouvé pour: ' + searchTerm);
+            }
+        }
+
+        function switchBasemap(type) {
+            if (type === 'osm') {
+                map.removeLayer(satelliteLayer);
+                map.addLayer(osmLayer);
+                document.getElementById('btn-osm').classList.add('active');
+                document.getElementById('btn-satellite').classList.remove('active');
+            } else {
+                map.removeLayer(osmLayer);
+                map.addLayer(satelliteLayer);
+                document.getElementById('btn-osm').classList.remove('active');
+                document.getElementById('btn-satellite').classList.add('active');
+            }
+        }
+
+        // ==================== FONCTION GÉOLOCALISATION ====================
+        function getUserLocation() {
+            const btn = document.getElementById('btn-location');
+            const btnText = document.getElementById('btn-text');
+            
+            if (!navigator.geolocation) {
+                alert('❌ Votre navigateur ne supporte pas la géolocalisation.\n\nVeuillez utiliser un navigateur plus récent comme Chrome, Firefox, Safari ou Edge.');
+                return;
+            }
+
+            btn.classList.add('loading');
+            btn.disabled = true;
+            btnText.textContent = 'Localisation...';
+
+            const options = {
+                enableHighAccuracy: true,
+                timeout: 30000,
+                maximumAge: 0
+            };
+
+            function onSuccess(position) {
+                const lat = position.coords.latitude;
+                const lng = position.coords.longitude;
+                const accuracy = position.coords.accuracy;
+
+                if (userLocationMarker !== null) {
+                    map.removeLayer(userLocationMarker);
+                }
+
+                map.setView([lat, lng], 15);
+
+                const userIcon = L.divIcon({
+                    className: 'user-location-icon',
+                    html: '<div class="user-marker"></div>',
+                    iconSize: [16, 16],
+                    iconAnchor: [8, 8]
+                });
+
+                userLocationMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+                
+                userLocationMarker.bindPopup(
+                    '<div class="popup-content">' +
+                    '<h4>📍 Ma Position</h4>' +
+                    '<p><strong>Latitude:</strong> ' + lat.toFixed(6) + '</p>' +
+                    '<p><strong>Longitude:</strong> ' + lng.toFixed(6) + '</p>' +
+                    '<p><strong>Précision:</strong> ~' + Math.round(accuracy) + ' m</p>' +
+                    '</div>'
+                ).openPopup();
+
+                btn.classList.remove('loading');
+                btn.classList.add('success');
+                btnText.textContent = 'Position trouvée';
+                btn.disabled = false;
+
+                setTimeout(function() {
+                    btn.classList.remove('success');
+                    btnText.textContent = 'Ma position';
+                }, 3000);
+            }
+
+            function onError(error) {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+                btnText.textContent = 'Ma position';
+
+                let message = '';
+                
+                switch(error.code) {
+                    case error.PERMISSION_DENIED:
+                        message = '❌ Autorisation refusée\n\n' +
+                            'Pour activer la géolocalisation:\n\n' +
+                            '📍 Sur Chrome/Edge:\n' +
+                            '1. Cliquez sur le cadenas 🔒 dans la barre d\'adresse\n' +
+                            '2. Trouvez "Position" ou "Localisation"\n' +
+                            '3. Sélectionnez "Autoriser"\n' +
+                            '4. Rechargez la page (F5)\n\n' +
+                            '📍 Sur Firefox:\n' +
+                            '1. Cliquez sur l\'icône à gauche de l\'adresse\n' +
+                            '2. Modifiez la permission "Accéder à votre position"\n' +
+                            '3. Rechargez la page\n\n' +
+                            '📍 Sur mobile:\n' +
+                            'Vérifiez que le GPS est activé dans les paramètres.';
+                        break;
+                    case error.POSITION_UNAVAILABLE:
+                        message = '⚠️ Position non disponible\n\n' +
+                            'Vérifiez que:\n' +
+                            '• Votre GPS est activé\n' +
+                            '• Vous avez une connexion internet\n' +
+                            '• Vous n\'êtes pas en mode avion';
+                        break;
+                    case error.TIMEOUT:
+                        message = '⏱️ Délai dépassé\n\n' +
+                            'La recherche de position a pris trop de temps.\n\n' +
+                            'Essayez de:\n' +
+                            '• Vous placer près d\'une fenêtre\n' +
+                            '• Activer le WiFi (améliore la précision)\n' +
+                            '• Réessayer dans quelques instants';
+                        break;
+                    default:
+                        message = '❌ Erreur inconnue\n\nCode: ' + error.code + '\nMessage: ' + error.message;
+                }
+
+                alert(message);
+            }
+
+            navigator.geolocation.getCurrentPosition(onSuccess, onError, options);
+        }
+
+        function exportGeoJSON() {
+            const geojson = {
+                type: "FeatureCollection",
+                features: healthFacilities.map(function(f) {
+                    return {
+                        type: "Feature",
+                        geometry: {
+                            type: "Point",
+                            coordinates: [f.longitude, f.latitude]
+                        },
+                        properties: {
+                            id: f.id,
+                            nom: f.nom,
+                            type: f.type,
+                            nature: f.nature,
+                            departement: f.departement,
+                            commune: f.commune
+                        }
+                    };
+                })
+            };
+
+            const blob = new Blob([JSON.stringify(geojson, null, 2)], { type: 'application/json' });
+            downloadFile(blob, 'etablissements_sanitaires_benin.geojson');
+        }
+
+        function exportCSV() {
+            const headers = ['ID', 'Nom', 'Type', 'Nature', 'Département', 'Commune', 'Latitude', 'Longitude'];
+            const rows = healthFacilities.map(function(f) {
+                return [f.id, f.nom, typeConfig[f.type] ? typeConfig[f.type].label : f.type, f.nature, f.departement, f.commune, f.latitude, f.longitude];
+            });
+
+            let csv = headers.join(',') + '\n';
+            rows.forEach(function(row) {
+                csv += row.map(function(cell) { return '"' + cell + '"'; }).join(',') + '\n';
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            downloadFile(blob, 'etablissements_sanitaires_benin.csv');
+        }
+
+        function downloadFile(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggleBtn = document.querySelector('.toggle-btn');
+            sidebar.classList.toggle('collapsed');
+            toggleBtn.classList.toggle('collapsed');
+        }
+
+        function showStats() {
+            const stats = {};
+            healthFacilities.forEach(function(f) {
+                if (!stats[f.type]) stats[f.type] = 0;
+                stats[f.type]++;
+            });
+
+            const statsContent = document.getElementById('stats-content');
+            let html = '<div style="display: grid; gap: 8px;">';
+            
+            Object.entries(stats).sort(function(a, b) { return b[1] - a[1]; }).forEach(function(entry) {
+                const type = entry[0];
+                const count = entry[1];
+                const config = typeConfig[type] || { color: "#607d8b", icon: "fa-hospital", label: type };
+                html += '<div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: #f5f5f5; border-radius: 5px;">' +
+                    '<i class="fas ' + config.icon + '" style="color: ' + config.color + '; font-size: 14px;"></i>' +
+                    '<span style="flex: 1;">' + config.label + '</span>' +
+                    '<strong style="color: #1a5d1a;">' + count + '</strong>' +
+                    '</div>';
+            });
+            
+            html += '</div>';
+            statsContent.innerHTML = html;
+            document.getElementById('statsModal').classList.add('active');
+        }
+
+        function closeStats() {
+            document.getElementById('statsModal').classList.remove('active');
+        }
+
+        function showAbout() {
+            document.getElementById('aboutModal').classList.add('active');
+        }
+
+        function closeAbout() {
+            document.getElementById('aboutModal').classList.remove('active');
+        }
+
+        function printMap() {
+            window.print();
+        }
+
+        // Événements
+        document.getElementById('search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') searchEstablishment();
+        });
+
+        document.querySelectorAll('.modal-overlay').forEach(function(modal) {
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) modal.classList.remove('active');
+            });
+        });
+
+        // Initialisation
+        initFilters();
+        addMarkers(healthFacilities);
+    </script>
+</body>
+</html>
